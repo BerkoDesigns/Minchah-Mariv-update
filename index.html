@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#3a3226">
+<title>מנחה-מעריב</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --gold: #ad8a3f;
+    --gold-dark: #7a5e2a;
+    --cream: #f7f3ea;
+    --ink: #3a3226;
+    --green: #3f7a4e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: #fff;
+    border: 1px solid #e4dcc8;
+    border-radius: 16px;
+    padding: 32px 28px;
+    box-shadow: 0 4px 20px rgba(58,50,38,0.08);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    text-align: center;
+    color: var(--gold-dark);
+  }
+  .sub {
+    text-align: center;
+    color: #8a8072;
+    font-size: 14px;
+    margin: 0 0 28px;
+  }
+  .current {
+    background: var(--cream);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+  .current .label { font-size: 13px; color: #8a8072; margin-bottom: 4px; }
+  .current .value { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: 0.5px; direction: ltr; }
+  .current .value.empty { font-size: 16px; font-weight: 400; color: #b5ab9a; }
+  label.field-label {
+    display: block;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  input[type="time"] {
+    width: 100%;
+    font-size: 28px;
+    padding: 14px;
+    border: 2px solid #e4dcc8;
+    border-radius: 10px;
+    background: var(--cream);
+    color: var(--ink);
+    text-align: center;
+    direction: ltr;
+  }
+  input[type="time"]:focus { outline: none; border-color: var(--gold); }
+  button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 16px;
+    font-size: 17px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    background: var(--gold);
+    color: #fff;
+    cursor: pointer;
+  }
+  button:active { background: var(--gold-dark); }
+  button:disabled { background: #d8cdb3; cursor: default; }
+  .status {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 14px;
+    min-height: 20px;
+  }
+  .status.ok { color: var(--green); }
+  .status.err { color: #b3413f; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>מנחה-מעריב</h1>
+    <p class="sub">כולל חסד ואמת — Bay 24</p>
+
+    <div class="current">
+      <div class="label">Currently set to</div>
+      <div class="value empty" id="currentValue">Loading…</div>
+    </div>
+
+    <label class="field-label" for="timeInput">New time</label>
+    <input type="time" id="timeInput">
+
+    <button id="saveBtn" onclick="save()">Save</button>
+    <div class="status" id="status"></div>
+  </div>
+
+<script>
+const WRITE_URL = "https://script.google.com/macros/s/AKfycbyOcyXRJnm1sd9tZBJ7d2p5YOZj9p51JGVv_WgkkJ-cc19jUJxfBQGVVjTKZ-dB-Hq1/exec";
+const SECRET = "chesed-secret-2026-xk9m";
+
+async function api(params) {
+  const qs = new URLSearchParams({ token: SECRET, ...params }).toString();
+  const res = await fetch(WRITE_URL + "?" + qs);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+async function apiPost(params) {
+  const res = await fetch(WRITE_URL + "?token=" + SECRET, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ token: SECRET, ...params })
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+function to12Hour(hhmm) {
+  if (!hhmm) return "";
+  let [h, m] = hhmm.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12; if (h === 0) h = 12;
+  return h + ":" + String(m).padStart(2, "0") + " " + ampm;
+}
+
+async function loadCurrent() {
+  const el = document.getElementById("currentValue");
+  try {
+    const d = await api({ action: "getMinchaMaarivStanding" });
+    if (d.value) {
+      el.textContent = to12Hour(d.value);
+      el.classList.remove("empty");
+      document.getElementById("timeInput").value = d.value;
+    } else {
+      el.textContent = "Not set yet";
+      el.classList.add("empty");
+    }
+  } catch (e) {
+    el.textContent = "Couldn't load";
+    el.classList.add("empty");
+  }
+}
+
+async function save() {
+  const value = document.getElementById("timeInput").value;
+  const btn = document.getElementById("saveBtn");
+  const status = document.getElementById("status");
+  status.textContent = "";
+  status.className = "status";
+  if (!value) {
+    status.textContent = "Enter a time first";
+    status.className = "status err";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const d = await apiPost({ action: "saveMinchaMaarivStanding", value });
+    if (d.ok) {
+      status.textContent = "Saved — the board will update shortly";
+      status.className = "status ok";
+      await loadCurrent();
+    } else {
+      status.textContent = d.error || "Save failed — try again";
+      status.className = "status err";
+    }
+  } catch (e) {
+    status.textContent = "Save failed — check your connection";
+    status.className = "status err";
+  }
+  btn.disabled = false;
+  btn.textContent = "Save";
+}
+
+loadCurrent();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
